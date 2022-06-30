@@ -118,12 +118,12 @@ class WeTr(nn.Cell):
     def construct(self, x):
         x, masks = self.encoder(x)
         # print(x[0].dtype)
-        x = [self.decoder(x[0]), self.decoder(x[1])]
+        x = (self.decoder(x[0]), self.decoder(x[1]))
         ens = 0
         alpha_soft = self.softmax(self.alpha)
         for l in range(self.num_parallel):
             ens += alpha_soft[l] * ops.stop_gradient(x[l])
-        x.append(ens)
+        x += (ens,)
         return x, masks
 
 

@@ -85,31 +85,50 @@ class Attention(nn.Cell):
     def construct(self, x, H, W, mask):
         B, N, C = x[0].shape
         q = self.q(x)
-        q = [q_.reshape(B, N, self.num_heads, C // self.num_heads).transpose(0, 2, 1, 3) for q_ in q]
+        q_list = ()
+        for q_ in q:
+            q_list += (q_.reshape(B, N, self.num_heads, C // self.num_heads).transpose(0, 2, 1, 3),)
 
         if self.sr_ratio > 1:
-            x = [x_.transpose(0, 2, 1).reshape(B, C, H, W) for x_ in x]
-            x = self.sr(x)
-            x = [x_.reshape(B, C, -1).transpose(0, 2, 1) for x_ in x]
-            x = self.norm(x)
+            x_list = ()
+            for x_ in x:
+                x_list += (x_.transpose(0, 2, 1).reshape(B, C, H, W),)
+            x = self.sr(x_list)
+            x_list = ()
+            for x_ in x:
+                x_list += (x_.reshape(B, C, -1).transpose(0, 2, 1),)
+            x = self.norm(x_list)
             kv = self.kv(x)
-            kv = [kv_.reshape(B, -1, 2, self.num_heads, C // self.num_heads).transpose(2, 0, 3, 1, 4) for kv_ in kv]
+            kv_list = ()
+            for kv_ in kv:
+                kv_list += (kv_.reshape(B, -1, 2, self.num_heads, C // self.num_heads).transpose(2, 0, 3, 1, 4),)
         else:
             kv = self.kv(x)
-            kv = [kv_.reshape(B, -1, 2, self.num_heads, C // self.num_heads).transpose(2, 0, 3, 1, 4) for kv_ in kv]
-        k, v = [kv[0][0], kv[1][0]], [kv[0][1], kv[1][1]]
+            kv_list = ()
+            for kv_ in kv:
+                kv_list += (kv_.reshape(B, -1, 2, self.num_heads, C // self.num_heads).transpose(2, 0, 3, 1, 4),)
 
-        attn = [self.bmm(q_, k_.swapaxes(-2, -1)) * self.scale for (q_, k_) in zip(q, k)]
-        attn = [self.softmax(attn_) for attn_ in attn]
-        attn = self.attn_drop(attn)
+        # print(len(kv_list))
+        k_list, v_list = (kv_list[0][0], kv_list[1][0]), (kv_list[0][1], kv_list[1][1])
+        attn_list = ()
+        for (q_, k_) in zip(q_list, k_list):
+            attn_list += (self.bmm(q_, k_.swapaxes(-2, -1)) * self.scale,)
+        attn_list_2 = ()
+        for attn_ in attn_list:
+            attn_list_2 += (self.softmax(attn_),)
+        attn = self.attn_drop(attn_list_2)
 
-        x = [self.bmm(attn_, v_).swapaxes(1, 2).reshape(B, N, C) for (attn_, v_) in zip(attn, v)]
-        x = self.proj(x)
+        x_list = ()
+        for (attn_, v_) in zip(attn, v_list):
+            x_list += (self.bmm(attn_, v_).swapaxes(1, 2).reshape(B, N, C),)
+        x = self.proj(x_list)
         x = self.proj_drop(x)
 
         if mask is not None:
-            x = [x_ * mask_.expand_dims(2) for (x_, mask_) in zip(x, mask)]
-            x = self.exchange(x, mask, mask_threshold=0.02)
+            x_list = ()
+            for (x_, mask_) in zip(x, mask):
+                x_list += (x_ * mask_.expand_dims(2),)
+            x = self.exchange(x_list, mask, mask_threshold=0.02)
 
         return x
 
@@ -131,11 +150,12 @@ class PredictorLG(nn.Cell):
         ) for _ in range(num_parallel)])
 
     def construct(self, x):
-        x = [self.score_nets[i](x[i]) for i in range(num_parallel)]
-        return x
+        outs = ()
+        for i in range(num_parallel):
+            outs += (self.score_nets[i](x[i]),)
+        return outs
 
 class Block(nn.Cell):
-
     def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop=0., attn_drop=0.,
                  drop_path=0., act_layer=nn.GELU, norm_layer=LayerNormParallel, sr_ratio=1):
         super().__init__()
@@ -175,12 +195,17 @@ class Block(nn.Cell):
         # if mask is not None:
         #     norm = [norm_ * mask_.unsqueeze(2) for (norm_, mask_) in zip(norm, mask)]
         f = self.drop_path(self.attn(self.norm1(x), H, W, mask))
-        x = [x_ + f_ for (x_, f_) in zip (x, f)]
-        f = self.drop_path(self.mlp(self.norm2(x), H, W))
-        x = [x_ + f_ for (x_, f_) in zip (x, f)]
+        x_list = ()
+        for (x_, f_) in zip (x, f):
+            x_list += (x_ + f_,)
+        # x = [x_ + f_ for (x_, f_) in zip (x, f)]
+        f = self.drop_path(self.mlp(self.norm2(x_list), H, W))
+        x_list = ()
+        for (x_, f_) in zip (x, f):
+            x_list += (x_ + f_,)
         # if mask is not None:
         #     x = self.exchange(x, mask, mask_threshold=0.02)
-        return x
+        return x_list
 
 class OverlapPatchEmbed(nn.Cell):
     """ Image to Patch Embedding
@@ -216,8 +241,11 @@ class OverlapPatchEmbed(nn.Cell):
     def construct(self, x):
         x = self.proj(x)
         _, _, H, W = x[0].shape
-        x = [x_.reshape(x_.shape[0], x_.shape[1], -1).swapaxes(1, 2) for x_ in x]
-        x = self.norm(x)
+        x_list = ()
+        for x_ in x:
+            x_list += (x_.reshape(x_.shape[0], x_.shape[1], -1).swapaxes(1, 2),)
+        # x = [x_.reshape(x_.shape[0], x_.shape[1], -1).swapaxes(1, 2) for x_ in x]
+        x = self.norm(x_list)
         return x, H, W
 
 class MixVisionTransformer(nn.Cell):
@@ -333,58 +361,75 @@ class MixVisionTransformer(nn.Cell):
 
     def forward_features(self, x):
         B = x[0].shape[0]
-        outs0, outs1 = [], []
-        masks = []
+        outs0, outs1 = (), ()
+        masks = ()
 
         # stage 1
         x, H, W = self.patch_embed1(x)
         for i, blk in enumerate(self.block1):
+            mask = ()
             score = self.score_predictor[0](x)
-            mask = [self.softmax(score_.reshape(B, -1, 2))[:, :, 0] for score_ in score]  # mask_: [B, N]
-            masks.append(mask)
+            for score_ in score:
+                mask += (self.softmax(score_.reshape(B, -1, 2))[:, :, 0],)
+            # mask = [self.softmax(score_.reshape(B, -1, 2))[:, :, 0] for score_ in score]  # mask_: [B, N]
+            masks += (mask,)
             x = blk(x, H, W, mask)
         x = self.norm1(x)
-        x = [x_.reshape(B, H, W, -1).transpose(0, 3, 1, 2) for x_ in x]
-        outs0.append(x[0])
-        outs1.append(x[1])
+        outs = ()
+        for x_ in x:
+            outs += (x_.reshape(B, H, W, -1).transpose(0, 3, 1, 2),)
+        outs0 += (outs[0],)
+        outs1 += (outs[1],)
 
         # stage 2
-        x, H, W = self.patch_embed2(x)
+        x, H, W = self.patch_embed2(outs)
         for i, blk in enumerate(self.block2):
+            mask = ()
             score = self.score_predictor[1](x)
-            mask = [self.softmax(score_.reshape(B, -1, 2))[:, :, 0] for score_ in score]  # mask_: [B, N]
-            masks.append(mask)
+            for score_ in score:
+                mask += (self.softmax(score_.reshape(B, -1, 2))[:, :, 0],)
+            masks += (mask,)
             x = blk(x, H, W, mask)
         x = self.norm2(x)
-        x = [x_.reshape(B, H, W, -1).transpose(0, 3, 1, 2) for x_ in x]
-        outs0.append(x[0])
-        outs1.append(x[1])
+        outs = ()
+        for x_ in x:
+            outs += (x_.reshape(B, H, W, -1).transpose(0, 3, 1, 2),)
+        outs0 += (outs[0],)
+        outs1 += (outs[1],)
 
         # stage 3
-        x, H, W = self.patch_embed3(x)
+        x, H, W = self.patch_embed3(outs)
         for i, blk in enumerate(self.block3):
+            mask = ()
             score = self.score_predictor[2](x)
-            mask = [self.softmax(score_.reshape(B, -1, 2))[:, :, 0] for score_ in score]  # mask_: [B, N]
-            masks.append(mask)
+            for score_ in score:
+                mask += (self.softmax(score_.reshape(B, -1, 2))[:, :, 0],)
+            masks += (mask,)
             x = blk(x, H, W, mask)
         x = self.norm3(x)
-        x = [x_.reshape(B, H, W, -1).transpose(0, 3, 1, 2) for x_ in x]
-        outs0.append(x[0])
-        outs1.append(x[1])
+        outs = ()
+        for x_ in x:
+            outs += (x_.reshape(B, H, W, -1).transpose(0, 3, 1, 2),)
+        outs0 += (outs[0],)
+        outs1 += (outs[1],)
 
         # stage 4
-        x, H, W = self.patch_embed4(x)
+        x, H, W = self.patch_embed4(outs)
         for i, blk in enumerate(self.block4):
+            mask = ()
             score = self.score_predictor[3](x)
-            mask = [self.softmax(score_.reshape(B, -1, 2))[:, :, 0] for score_ in score]  # mask_: [B, N]
-            masks.append(mask)
+            for score_ in score:
+                mask += (self.softmax(score_.reshape(B, -1, 2))[:, :, 0],)
+            masks += (mask,)
             x = blk(x, H, W, mask)
         x = self.norm4(x)
-        x = [x_.reshape(B, H, W, -1).transpose(0, 3, 1, 2) for x_ in x]
-        outs0.append(x[0])
-        outs1.append(x[1])
+        outs = ()
+        for x_ in x:
+            outs += (x_.reshape(B, H, W, -1).transpose(0, 3, 1, 2),)
+        outs0 += (outs[0],)
+        outs1 += (outs[1],)
 
-        return [outs0, outs1], masks
+        return (outs0, outs1), masks
 
     def construct(self, x):
         x, masks = self.forward_features(x)

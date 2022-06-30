@@ -27,7 +27,10 @@ class ModuleParallel(nn.Cell):
         self.module = module
 
     def construct(self, x_parallel):
-        return [self.module(x) for x in x_parallel]
+        outs = ()
+        for x in x_parallel:
+            outs += (self.module(x),)
+        return outs
 
 class LayerNormParallel(nn.Cell):
     def __init__(self, num_features):
@@ -38,7 +41,10 @@ class LayerNormParallel(nn.Cell):
         self.ln_list = nn.CellList(ln_list)
 
     def construct(self, x_parallel):
-        return [self.ln_list[i](x) for i, x in enumerate(x_parallel)]
+        outs = ()
+        for i, x in enumerate(x_parallel):
+            outs += (self.ln_list[i](x),)
+        return outs
 
 def drop_path(x, drop_prob: float = 0., training: bool = False, scale_by_keep: bool = True):
     """Drop paths (Stochastic Depth) per sample (when applied in main path of residual blocks).
