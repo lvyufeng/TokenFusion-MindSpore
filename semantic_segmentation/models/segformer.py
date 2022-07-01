@@ -57,10 +57,11 @@ class SegFormerHead(nn.Cell):
 
         ############## MLP decoder on C1-C4 ###########
         n, _, h, w = c4.shape
-        interpolate = ops.ResizeBilinear(c1.shape[2:])
+        interpolate = ops.ResizeNearestNeighbor(c1.shape[2:])
         _c4 = self.linear_c4(c4).transpose(0,2,1).reshape(n, -1, c4.shape[2], c4.shape[3])
         _c4 = interpolate(_c4)
-
+        # print(_c4)
+        # return
         _c3 = self.linear_c3(c3).transpose(0,2,1).reshape(n, -1, c3.shape[2], c3.shape[3])
         _c3 = interpolate(_c3)
 
@@ -68,9 +69,11 @@ class SegFormerHead(nn.Cell):
         _c2 = interpolate(_c2)
 
         _c1 = self.linear_c1(c1).transpose(0,2,1).reshape(n, -1, c1.shape[2], c1.shape[3])
-
+        # print(_c1, _c1.shape)
+        # return
         _c = self.linear_fuse(mnp.concatenate([_c4, _c3, _c2, _c1], axis=1))
-
+        print(_c)
+        return
         x = self.dropout(_c)
         x = self.linear_pred(x)
 
@@ -117,9 +120,13 @@ class WeTr(nn.Cell):
 
     def construct(self, x):
         x, masks = self.encoder(x)
+        # print(x[0])
+        # return
         # print(x[0].dtype)
         x = (self.decoder(x[0]), self.decoder(x[1]))
         ens = 0
+        # print(x[0])
+        # return
         alpha_soft = self.softmax(self.alpha)
         for l in range(self.num_parallel):
             ens += alpha_soft[l] * ops.stop_gradient(x[l])

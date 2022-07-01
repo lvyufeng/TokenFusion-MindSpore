@@ -1,7 +1,8 @@
 import mindspore
 import mindspore.nn as nn
 import mindspore.ops as ops
-from mindspore import Tensor
+from mindspore import Parameter, Tensor
+from mindspore.common.initializer import initializer
 
 num_parallel = 2
 
@@ -98,15 +99,44 @@ class Dropout2d(nn.Cell):
         out, _ = self.dropout_2d(inputs)
         return out
 
+class Conv2d_1x1(nn.Cell):
+    def __init__(self, in_channels, out_channels, kernel_size):
+        super().__init__()
+        self.weight = Parameter(initializer('normal', [out_channels, in_channels, kernel_size, kernel_size]), 'weight')
+        self.matmul = ops.MatMul(transpose_b=True)
+        self.c_in = in_channels
+        self.c_out = out_channels
+
+    def construct(self, inputs):
+        # inputs (b, c, h, w)
+        b, _, h, w = inputs.shape
+        
+        # inputs (b*h*w, c_in)
+        inputs = inputs.transpose(0, 2, 3, 1).reshape(b*h*w, self.c_in)
+        # outputs (b*h*w, c_out)
+        outputs = self.matmul(inputs, self.weight.reshape(self.c_out, self.c_in))
+        # outputs (b, c_out, h, w)
+        outputs = outputs.reshape(b, h, w, self.c_out).transpose(0, 3, 1, 2)
+        return outputs
+
 class ConvModule(nn.Cell):
     def __init__(self, in_channels, out_channels, kernel_size):
         super().__init__()
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size)
+        # print(self.conv)
+        # self.conv = Conv2d_1x1(in_channels, out_channels, kernel_size)
         self.bn = nn.BatchNorm2d(out_channels)
         self.relu = nn.ReLU()
     
     def construct(self, x):
+        # print(x)
+        # return
+        print(x.shape)
         out = self.conv(x)
+        print(out.shape)
+        print(out)
+        # print(self.conv.weight.asnumpy())
+        return
         out = self.bn(out)
         out = self.relu(out)
         return out

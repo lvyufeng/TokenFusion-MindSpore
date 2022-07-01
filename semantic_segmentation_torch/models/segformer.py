@@ -62,7 +62,8 @@ class SegFormerHead(nn.Module):
 
         _c4 = self.linear_c4(c4).permute(0,2,1).reshape(n, -1, c4.shape[2], c4.shape[3])
         _c4 = F.interpolate(_c4, size=c1.size()[2:],mode='bilinear',align_corners=False)
-
+        # print(_c4)
+        # return
         _c3 = self.linear_c3(c3).permute(0,2,1).reshape(n, -1, c3.shape[2], c3.shape[3])
         _c3 = F.interpolate(_c3, size=c1.size()[2:],mode='bilinear',align_corners=False)
 
@@ -70,11 +71,13 @@ class SegFormerHead(nn.Module):
         _c2 = F.interpolate(_c2, size=c1.size()[2:],mode='bilinear',align_corners=False)
 
         _c1 = self.linear_c1(c1).permute(0,2,1).reshape(n, -1, c1.shape[2], c1.shape[3])
-
+        # print(_c1, _c1.shape)
+        # return
         _c = self.linear_fuse(torch.cat([_c4, _c3, _c2, _c1], dim=1))
-
+        print(_c)
+        return
         x = self.dropout(_c)
-        print(type(x))
+        # print(type(x))
         x = self.linear_pred(x)
 
         return x
@@ -120,8 +123,8 @@ class WeTr(nn.Module):
 
     def forward(self, x):
         x, masks = self.encoder(x)
-        print(len(x), len(masks))
-        print(type(x[0]), len(x[0]))
+        # print(x[0])
+        # return
         x = [self.decoder(x[0]), self.decoder(x[1])]
         ens = 0
         alpha_soft = F.softmax(self.alpha)

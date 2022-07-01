@@ -40,6 +40,7 @@ class MLP(nn.Cell):
         x = self.drop(x)
         x = self.fc2(x)
         x = self.drop(x)
+
         return x
 
 class Attention(nn.Cell):
@@ -60,7 +61,6 @@ class Attention(nn.Cell):
         self.proj_drop = ModuleParallel(nn.Dropout(1-proj_drop))
 
         self.sr_ratio = sr_ratio
-
         if sr_ratio > 1:
             self.sr = ModuleParallel(nn.Conv2d(dim, dim, sr_ratio, sr_ratio, has_bias=True))
             self.norm = LayerNormParallel(dim)
@@ -196,16 +196,16 @@ class Block(nn.Cell):
         #     norm = [norm_ * mask_.unsqueeze(2) for (norm_, mask_) in zip(norm, mask)]
         f = self.drop_path(self.attn(self.norm1(x), H, W, mask))
         x_list = ()
-        for (x_, f_) in zip (x, f):
+        for (x_, f_) in zip(x, f):
             x_list += (x_ + f_,)
         # x = [x_ + f_ for (x_, f_) in zip (x, f)]
         f = self.drop_path(self.mlp(self.norm2(x_list), H, W))
-        x_list = ()
-        for (x_, f_) in zip (x, f):
-            x_list += (x_ + f_,)
+        x_list_1 = ()
+        for (x_, f_) in zip (x_list, f):
+            x_list_1 += (x_ + f_,)
         # if mask is not None:
         #     x = self.exchange(x, mask, mask_threshold=0.02)
-        return x_list
+        return x_list_1
 
 class OverlapPatchEmbed(nn.Cell):
     """ Image to Patch Embedding
@@ -220,7 +220,7 @@ class OverlapPatchEmbed(nn.Cell):
         self.patch_size = patch_size
         self.H, self.W = img_size[0] // patch_size[0], img_size[1] // patch_size[1]
         self.num_patches = self.H * self.W
-        self.proj = ModuleParallel(nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=stride,
+        self.proj = ModuleParallel(nn.Conv2d(in_chans, embed_dim, kernel_size=patch_size, stride=stride, has_bias=True,
                                              pad_mode='pad', padding=(patch_size[0] // 2, patch_size[0] // 2, patch_size[1] // 2, patch_size[1] // 2)))
         self.norm = LayerNormParallel(embed_dim)
 
@@ -380,9 +380,12 @@ class MixVisionTransformer(nn.Cell):
             outs += (x_.reshape(B, H, W, -1).transpose(0, 3, 1, 2),)
         outs0 += (outs[0],)
         outs1 += (outs[1],)
-
+        # print(outs[0])
+        # return
         # stage 2
         x, H, W = self.patch_embed2(outs)
+        # print(x)
+        # return
         for i, blk in enumerate(self.block2):
             mask = ()
             score = self.score_predictor[1](x)
@@ -396,6 +399,8 @@ class MixVisionTransformer(nn.Cell):
             outs += (x_.reshape(B, H, W, -1).transpose(0, 3, 1, 2),)
         outs0 += (outs[0],)
         outs1 += (outs[1],)
+        # print(outs[0])
+        # return
 
         # stage 3
         x, H, W = self.patch_embed3(outs)
@@ -412,7 +417,8 @@ class MixVisionTransformer(nn.Cell):
             outs += (x_.reshape(B, H, W, -1).transpose(0, 3, 1, 2),)
         outs0 += (outs[0],)
         outs1 += (outs[1],)
-
+        # print(outs[0])
+        # return
         # stage 4
         x, H, W = self.patch_embed4(outs)
         for i, blk in enumerate(self.block4):
@@ -428,7 +434,8 @@ class MixVisionTransformer(nn.Cell):
             outs += (x_.reshape(B, H, W, -1).transpose(0, 3, 1, 2),)
         outs0 += (outs[0],)
         outs1 += (outs[1],)
-
+        # print(outs[1])
+        # return
         return (outs0, outs1), masks
 
     def construct(self, x):

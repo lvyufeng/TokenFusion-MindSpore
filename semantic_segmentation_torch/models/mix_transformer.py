@@ -370,9 +370,12 @@ class MixVisionTransformer(nn.Module):
         x = [x_.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous() for x_ in x]
         outs0.append(x[0])
         outs1.append(x[1])
-
+        # print(x[0])
+        # return
         # stage 2
         x, H, W = self.patch_embed2(x)
+        # print(x)
+        # return
         for i, blk in enumerate(self.block2):
             score = self.score_predictor[1](x)
             mask = [F.softmax(score_.reshape(B, -1, 2), dim=2)[:, :, 0] for score_ in score]  # mask_: [B, N]
@@ -382,6 +385,8 @@ class MixVisionTransformer(nn.Module):
         x = [x_.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous() for x_ in x]
         outs0.append(x[0])
         outs1.append(x[1])
+        # print(x[0])
+        # return
 
         # stage 3
         x, H, W = self.patch_embed3(x)
@@ -394,7 +399,8 @@ class MixVisionTransformer(nn.Module):
         x = [x_.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous() for x_ in x]
         outs0.append(x[0])
         outs1.append(x[1])
-
+        # print(x[0])
+        # return
         # stage 4
         x, H, W = self.patch_embed4(x)
         for i, blk in enumerate(self.block4):
@@ -406,7 +412,8 @@ class MixVisionTransformer(nn.Module):
         x = [x_.reshape(B, H, W, -1).permute(0, 3, 1, 2).contiguous() for x_ in x]
         outs0.append(x[0])
         outs1.append(x[1])
-
+        # print(x[1])
+        # return
         return [outs0, outs1], masks
 
     def forward(self, x):
