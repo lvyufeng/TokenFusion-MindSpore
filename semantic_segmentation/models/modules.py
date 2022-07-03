@@ -129,14 +129,13 @@ class ConvModule(nn.Cell):
         self.relu = nn.ReLU()
     
     def construct(self, x):
+        # print(x.shape)
         # print(x)
         # return
-        print(x.shape)
         out = self.conv(x)
-        print(out.shape)
-        print(out)
-        # print(self.conv.weight.asnumpy())
-        return
         out = self.bn(out)
+        # print(out.shape)
+        # print(out)
+        # return
         out = self.relu(out)
         return out

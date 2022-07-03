@@ -54,17 +54,18 @@ class SegFormerHead(nn.Cell):
 
     def construct(self, x):
         c1, c2, c3, c4 = x
+        interpolate = ops.ResizeBilinear(c1.shape[2:], True)
 
         ############## MLP decoder on C1-C4 ###########
         n, _, h, w = c4.shape
-        interpolate = ops.ResizeNearestNeighbor(c1.shape[2:])
         _c4 = self.linear_c4(c4).transpose(0,2,1).reshape(n, -1, c4.shape[2], c4.shape[3])
         _c4 = interpolate(_c4)
         # print(_c4)
         # return
         _c3 = self.linear_c3(c3).transpose(0,2,1).reshape(n, -1, c3.shape[2], c3.shape[3])
         _c3 = interpolate(_c3)
-
+        # print(_c3)
+        # return
         _c2 = self.linear_c2(c2).transpose(0,2,1).reshape(n, -1, c2.shape[2], c2.shape[3])
         _c2 = interpolate(_c2)
 
@@ -72,8 +73,8 @@ class SegFormerHead(nn.Cell):
         # print(_c1, _c1.shape)
         # return
         _c = self.linear_fuse(mnp.concatenate([_c4, _c3, _c2, _c1], axis=1))
-        print(_c)
-        return
+        # print(_c)
+        # return
         x = self.dropout(_c)
         x = self.linear_pred(x)
 
