@@ -54,20 +54,20 @@ class SegFormerHead(nn.Cell):
 
     def construct(self, x):
         c1, c2, c3, c4 = x
-        interpolate = ops.ResizeBilinear(c1.shape[2:], True)
+        # interpolate = ops.ResizeBilinear(c1.shape[2:], True)
 
         ############## MLP decoder on C1-C4 ###########
         n, _, h, w = c4.shape
         _c4 = self.linear_c4(c4).transpose(0,2,1).reshape(n, -1, c4.shape[2], c4.shape[3])
-        _c4 = interpolate(_c4)
+        _c4 = ops.interpolate(_c4, sizes=c1.shape[2:], coordinate_transformation_mode='half_pixel', mode='bilinear')
         # print(_c4)
         # return
         _c3 = self.linear_c3(c3).transpose(0,2,1).reshape(n, -1, c3.shape[2], c3.shape[3])
-        _c3 = interpolate(_c3)
+        _c3 = ops.interpolate(_c3, sizes=c1.shape[2:], coordinate_transformation_mode='half_pixel', mode='bilinear')
         # print(_c3)
         # return
         _c2 = self.linear_c2(c2).transpose(0,2,1).reshape(n, -1, c2.shape[2], c2.shape[3])
-        _c2 = interpolate(_c2)
+        _c2 = ops.interpolate(_c2, sizes=c1.shape[2:], coordinate_transformation_mode='half_pixel', mode='bilinear')
 
         _c1 = self.linear_c1(c1).transpose(0,2,1).reshape(n, -1, c1.shape[2], c1.shape[3])
         # print(_c1, _c1.shape)

@@ -41,9 +41,9 @@ class TestWeTr(unittest.TestCase):
     def test_wetr_torch2ms_precision(self):
         from mindspore import context
         context.set_context(mode=context.PYNATIVE_MODE)
-        wetr_pt = WeTr_pt('mit_b1', num_classes=20, embedding_dim=128, pretrained=False)
+        wetr_pt = WeTr_pt('mit_b1', num_classes=20, embedding_dim=256, pretrained=False)
 
-        wetr_ms = WeTr_ms('mit_b1', num_classes=20, embedding_dim=128, pretrained=False)
+        wetr_ms = WeTr_ms('mit_b1', num_classes=20, embedding_dim=256, pretrained=False)
 
         ms_states = torch2ms(wetr_pt.state_dict())
 
@@ -64,10 +64,9 @@ class TestWeTr(unittest.TestCase):
             outputs_pt, masks_pt = wetr_pt(dummy_input_pt)
         except Exception as e:
             print(e)
-        # print(outputs_pt[0].detach().numpy() - outputs_ms[0].asnumpy())
+
         for out_pt, out_ms in zip(outputs_pt, outputs_ms):
-            assert np.allclose(out_pt[0].detach().numpy(), out_ms[0].asnumpy(), 1e-3, 1e-3)
-            assert np.allclose(out_pt[1].detach().numpy(), out_ms[1].asnumpy(), 1e-3, 1e-3)
+            assert np.allclose(out_pt.detach().numpy(), out_ms.asnumpy(), 5e-3, 5e-3)
         for mask_pt, mask_ms in zip(masks_pt, masks_ms):
-            assert np.allclose(mask_pt[0].detach().numpy(), mask_ms[0].asnumpy(), 1e-3, 1e-3)
-            assert np.allclose(mask_pt[1].detach().numpy(), mask_ms[1].asnumpy(), 1e-3, 1e-3)
+            for m_pt, m_ms in zip(mask_pt, mask_ms):
+                assert np.allclose(m_pt.detach().numpy(), m_ms.asnumpy(), 1e-3, 1e-3)
